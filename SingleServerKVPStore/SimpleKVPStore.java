@@ -47,6 +47,7 @@ public class SimpleKVPStore {
      * @param key The key to store under
      * @param value The value to store
      * 
+     * @return whether the key was added
      * adds the mapping key --> value to the store, returning True if added, False otherwise
      */
     public Boolean put(String key, String value) {
@@ -59,9 +60,25 @@ public class SimpleKVPStore {
     /**
      * @param key The key to get
      * 
+     * @return the value associated with this key
      * gets the value stored under the key, returns null if not present
      */
     public String get(String key) {
         return store.getProperty(key);
+    }
+
+    /**
+     * @param key the key to delete
+     * 
+     * @return whether the delete was sucessfull
+     * 
+     * takes a key and deletes that KVP from the store
+     */
+    public boolean remove(String key) {
+        //remove and return value removed
+        Object value = store.remove(key);
+        saveData();
+        // if value is null then it was never in the store, so return false
+        return value != null;
     }
 }
