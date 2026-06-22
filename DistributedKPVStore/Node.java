@@ -3,13 +3,20 @@ import java.net.*;
 
 import java.util.Arrays;
 
-
-public class SimpleKVPServer {
+public class Node {
     public static void main(String[] args) throws Exception {
-        ServerSocket serverSocket = new ServerSocket(8080);
+        if (args.length < 2) {
+            System.err.println("ERROR: missing arguments for PORTNUMBER and PROPERTIESFILE");
+            System.exit(1);
+        }
+
+        int port = Integer.parseInt(args[0]);
+        String fileName = args[1];
+
+        ServerSocket serverSocket = new ServerSocket(port);
         
         //initiate KVP store
-        SimpleKVPStore store = new SimpleKVPStore("KVPStore.properties");
+        SimpleKVPStore store = new SimpleKVPStore(fileName);
 
         System.out.println("Server Started...");
 
