@@ -1,0 +1,67 @@
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Properties;
+
+public class SimpleKVPStore {
+    private Properties store;
+    private String fileName;
+
+    /**
+     * @param fileName File name of the properties file to be used
+     * 
+     * creates store, sets file name, and loads any existing data into the store (loads nothing if data not found)
+     */
+    public SimpleKVPStore(String fileName) {
+        this.store = new Properties();
+        this.fileName = fileName;
+
+        loadData();
+    }
+
+    /**
+     * loads data into the store, loads nothing if no file with fileName is found
+     */
+    public void loadData() {
+        try (FileInputStream in = new FileInputStream(this.fileName)) {
+            store.load(in);
+        }
+        catch (IOException e) {
+            System.out.println("No existing data found");
+        }
+    }
+
+    /**
+     * saves the data currently in the store to the correct file
+     */
+    public void saveData() {
+        try (FileOutputStream out = new FileOutputStream(this.fileName)) {
+            store.store(out, "Simple KVP store");
+        }
+        catch (IOException e) {
+            System.out.println("Failed to save data: " + e.getMessage());
+        }
+    }
+
+    /**
+     * @param key The key to store under
+     * @param value The value to store
+     * 
+     * adds the mapping key --> value to the store, returning True if added, False otherwise
+     */
+    public Boolean put(String key, String value) {
+        //set property then instantly save
+        store.setProperty(key, value);
+        saveData();
+        return true;
+    }
+
+    /**
+     * @param key The key to get
+     * 
+     * gets the value stored under the key, returns null if not present
+     */
+    public String get(String key) {
+        return store.getProperty(key);
+    }
+}

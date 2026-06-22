@@ -4,12 +4,13 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Arrays;
 
+
 public class SimpleKVPServer {
     public static void main(String[] args) throws Exception {
         ServerSocket serverSocket = new ServerSocket(8080);
         
         //initiate KVP store
-        Map<String, String> store = new HashMap<>();
+        SimpleKVPStore store = new SimpleKVPStore("KVPStore.properties");
 
         System.out.println("Server Started...");
 
@@ -77,6 +78,7 @@ public class SimpleKVPServer {
                     System.out.println("No value found for key: " + key);
                 }
            }
+           //if request not a command, but is of valid length
            else {
                 out.println("Enter valid command: GET KEY or PUT KEY VALUE");
            }
