@@ -1,0 +1,6 @@
+Run the router
+mvn exec:java "-Dexec.mainClass=Router"
+
+
+start all nodes in cluster.conf
+.\startCluster.bat
