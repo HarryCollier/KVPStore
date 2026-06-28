@@ -18,10 +18,24 @@ public class Router {
             
             //initiate the ring
             ConsisentHashRing ring = new ConsisentHashRing(100);
+            //initiate a map of ids to shards
+            Map<Integer, Shard> shardMap = new HashMap<>();
             //go through nodes and add each ports number to the ring
             for (int i = 0; i < nodes.size(); i++) {
-                String pNum = nodes.get(i).split(" ")[0];
-                ring.add(Integer.parseInt(pNum));
+                String[] line = nodes.get(i).split(" ");
+                int shardId = line[2];
+                int nodesPNum = line[0];
+                shardMap.compute(shardId, (key, currV) -> {
+                    if (currV == null) {
+                        Shard shard = new Shard(shardId, nodesPnum);
+                        ring.add(shardId);
+                        return shard;
+                    } else {
+                        currV.addFollower(nodesPNum);
+                        return currV;
+                    }
+                });
+
             }
 
 
