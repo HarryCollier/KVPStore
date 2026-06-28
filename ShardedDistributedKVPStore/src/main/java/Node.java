@@ -7,18 +7,18 @@ public class Node {
 
     private static final ObjectMapper mapper = new ObjectMapper();
     
+    
 
     public static void main(String[] args) throws Exception {
         // if too few args entered, return error
-        if (args.length < 4) {
-            System.err.println("ERROR: missing arguments for PORTNUMBER PROPERTIESFILE SHARDNUMBER LEADERSHIPSTATUS");
+        if (args.length < 3) {
+            System.err.println("ERROR: missing arguments for PORTNUMBER PROPERTIESFILE SHARDNUMBER");
             System.exit(1);
         }
         //get the port and filename from args
         int port = Integer.parseInt(args[0]);
         String fileName = args[1];
         String shard = args[2];
-        Boolean isLeader = Boolean.parseBoolean(args[3]);
         
         //using try so it auto closes the serverSocket
         try (ServerSocket serverSocket = new ServerSocket(port)) {

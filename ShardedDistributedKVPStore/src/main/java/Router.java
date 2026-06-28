@@ -21,10 +21,12 @@ public class Router {
             //initiate a map of ids to shards
             Map<Integer, Shard> shardMap = new HashMap<>();
             //go through nodes and add each ports number to the ring
-            for (int i = 0; i < nodes.size(); i++) {
+            for (int i = 0; i < nodes.size(); i++) 
+                //split line into data
                 String[] line = nodes.get(i).split(" ");
                 int shardId = line[2];
                 int nodesPNum = line[0];
+                //if the shard is in the map, add this node as a follower, if it isnt then add a new shard to the map and the ring, with its leader being this node
                 shardMap.compute(shardId, (key, currV) -> {
                     if (currV == null) {
                         Shard shard = new Shard(shardId, nodesPnum);
