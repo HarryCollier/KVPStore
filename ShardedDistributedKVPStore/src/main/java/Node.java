@@ -2,11 +2,13 @@ import java.io.*;
 import java.net.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import java.util.concurrent.*;
 public class Node {
-
+    //for converting command objects to json and vice versa
     private static final ObjectMapper mapper = new ObjectMapper();
-    
+    //prevents too many threads being spawned
+    private static final ExecutorService pool = Executors.newFixedThreadPool(10);
+
     
 
     public static void main(String[] args) throws Exception {
@@ -32,8 +34,8 @@ public class Node {
                 //wait for client
                 Socket client = serverSocket.accept();
                 System.out.println("Client Connected");
-                //start a new thread to deal with this client
-                new Thread(() -> {
+                //submit a new thread to handle client
+                pool.submit(() -> {
                     try {
                         //initiate read/writes
                         BufferedReader in = new BufferedReader (
@@ -62,7 +64,7 @@ public class Node {
                         System.out.println("Error with client: " + e.getMessage());
                     }
                 
-                }).start();
+                });
             } 
         }catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());

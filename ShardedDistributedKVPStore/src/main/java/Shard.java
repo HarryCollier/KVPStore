@@ -8,14 +8,14 @@ public class Shard {
     private List<Integer> followers;
 
     //first node added is going to be the leader, so just initiate followers
-    public Shard(int leader, int id) {
+    public Shard(int id, int leader) {
         this.leader = leader;
         this.id = id;
         this.followers = new ArrayList<>();
     }
     //getters
     public int getLeader() {return leader;}
-    public String getId() {return id;}
+    public int getId() {return id;}
     public List<Integer> getFollowers() {return followers;}
 
     //adds follower

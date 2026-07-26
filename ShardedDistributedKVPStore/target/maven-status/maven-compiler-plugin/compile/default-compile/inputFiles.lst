@@ -1,6 +1,7 @@
-C:\Users\snowb\PROG\DistributedSystems\KVPStore\ShardedDistributedKVPStore\src\main\java\Node.java
-C:\Users\snowb\PROG\DistributedSystems\KVPStore\ShardedDistributedKVPStore\src\main\java\Shard.java
-C:\Users\snowb\PROG\DistributedSystems\KVPStore\ShardedDistributedKVPStore\src\main\java\Command.java
-C:\Users\snowb\PROG\DistributedSystems\KVPStore\ShardedDistributedKVPStore\src\main\java\ConsisentHashRing.java
-C:\Users\snowb\PROG\DistributedSystems\KVPStore\ShardedDistributedKVPStore\src\main\java\SimpleKVPStore.java
-C:\Users\snowb\PROG\DistributedSystems\KVPStore\ShardedDistributedKVPStore\src\main\java\Router.java
+C:\PROG\KVPStore\ShardedDistributedKVPStore\src\main\java\ConsisentHashRing.java
+C:\PROG\KVPStore\ShardedDistributedKVPStore\src\main\java\Node.java
+C:\PROG\KVPStore\ShardedDistributedKVPStore\src\main\java\Shard.java
+C:\PROG\KVPStore\ShardedDistributedKVPStore\src\main\java\Client.java
+C:\PROG\KVPStore\ShardedDistributedKVPStore\src\main\java\SimpleKVPStore.java
+C:\PROG\KVPStore\ShardedDistributedKVPStore\src\main\java\Router.java
+C:\PROG\KVPStore\ShardedDistributedKVPStore\src\main\java\Command.java
