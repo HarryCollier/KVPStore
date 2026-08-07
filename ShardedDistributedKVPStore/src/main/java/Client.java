@@ -10,7 +10,7 @@ public class Client {
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));) {
             String command;
-            for (int j = 0; j < 2000; j++) {
+            for (int j = 0; j < 500; j++) {
                 int i = j % 100;
                 if (i >= 95) {command = "PUT key" + i + " value" + i;}
                 else {command = "GET key" + i;}

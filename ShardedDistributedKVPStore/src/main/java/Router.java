@@ -10,7 +10,10 @@ import java.util.concurrent.*;
 public class Router {
 
     private static final ObjectMapper mapper = new ObjectMapper();
-    private static final ExecutorService pool = Executors.newFixedThreadPool(10);
+    //thread pool limiting number of threads
+    private static final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+    //connection pool, limiting number of connections, and preventing creation overhead
+    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager("localhost", 30);
 
     public static void main(String[] args) throws Exception {
         
@@ -45,6 +48,40 @@ public class Router {
 
             }
 
+            //spawn new thread, should be seperate from pool, as only spawned once, and will run forever
+            new Thread(() -> {
+
+                // compute targets once, before entering the loop
+                Map<Shard, List<Integer>> shardTargets = new HashMap<>();
+                for (Shard shard : shardMap.values()) {
+                    List<Integer> targets = new ArrayList<>(shard.getFollowers());
+                    targets.add(shard.getLeader());
+                    shardTargets.put(shard, targets);
+                }
+
+                // loop is now dedicated purely to sending
+                while (true) {
+                    System.out.println("Sending shard info to nodes...");
+                    for (Map.Entry<Shard, List<Integer>> entry : shardTargets.entrySet()) {
+                        for (int nodePort : entry.getValue()) {
+                            threadPool.submit(() -> {
+                                try {
+                                    sendToNode(nodePort, mapper.writeValueAsString(entry.getKey()));
+                                } catch (IOException e) {
+                                    System.err.println("Error sending shard info to node " + nodePort + ": " + e.getMessage());
+                                }
+                            });
+                        }
+                    }
+
+                    try {
+                        Thread.sleep(15000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }).start();
 
             System.out.println("Server started...");
             //loop forever
@@ -63,7 +100,7 @@ public class Router {
                 );
 
 
-                pool.submit(() ->{
+                threadPool.submit(() ->{
                     try {
                         Command command = null;
 
@@ -90,23 +127,23 @@ public class Router {
                             //get the leader of the shard
                             int leader = shard.getLeader();
 
-                            //set up socket and I/Os to the leader node
-                            try (Socket node = new Socket("localhost", leader);
-                            PrintWriter outNode = new PrintWriter(node.getOutputStream(), true);
-                            BufferedReader inNode = new BufferedReader(new InputStreamReader(node.getInputStream()));) 
-                                {
+                            //get the correct pool for this leader (creating if it doesnt exist)
+                            ConnectionPool pool = connectionPoolManager.getPool(leader);
 
-                                //convert command object into a JSON
-                                String jsonRequest = mapper.writeValueAsString(command);
+                            //borrow a connection from the pool
+                            NodeConnection nodeConn = pool.borrow();
 
-                                //send json to Node
-                                outNode.println(jsonRequest);
-                                //get response
-                                String response = inNode.readLine();
-                                //send response to client
-                                outClient.println(response);
-                                //close node and client
-                                }
+                            //convert command object into a JSON
+                            String jsonRequest = mapper.writeValueAsString(command);
+
+                            //send json to Node
+                            nodeConn.out.println(jsonRequest);
+                            //get response
+                            String response = nodeConn.in.readLine();
+                            //send response to client
+                            outClient.println(response);
+                            //close node and client
+                        
                         }
                     }
                     catch (IOException e){
@@ -117,6 +154,27 @@ public class Router {
         }
         catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
+        }
+    }
+
+
+
+
+
+    private static void sendToNode(int nodePort, String message) {
+        ConnectionPool pool = connectionPoolManager.getPool(nodePort);
+        NodeConnection conn = null;
+        try {
+            conn = pool.borrow();
+            conn.out.println(message);
+
+            // handle response
+            String response = conn.in.readLine();
+            pool.release(conn);
+
+        } catch (IOException e) {
+            System.out.println("Node " + nodePort + " unreachable: " + e.getMessage());
+            
         }
     }
 }

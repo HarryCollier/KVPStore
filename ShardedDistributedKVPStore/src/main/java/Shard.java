@@ -7,6 +7,11 @@ public class Shard {
     private int id;
     private List<Integer> followers;
 
+    //default constructor for jackson
+    public Shard() {
+        followers = new ArrayList<>();
+    }
+
     //first node added is going to be the leader, so just initiate followers
     public Shard(int id, int leader) {
         this.leader = leader;

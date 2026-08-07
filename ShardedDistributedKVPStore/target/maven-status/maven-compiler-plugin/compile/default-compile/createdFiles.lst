@@ -1,2 +1,5 @@
 Client.class
+NodeConnection.class
+ConnectionPool.class
 Shard.class
+NodeConnectionPoolManager.class
