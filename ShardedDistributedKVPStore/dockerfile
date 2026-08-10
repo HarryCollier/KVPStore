@@ -1,0 +1,13 @@
+FROM maven:3.9.16-eclipse-temurin-17
+WORKDIR /app
+
+COPY pom.xml ./
+COPY src ./src
+
+RUN mvn package -DskipTests
+
+# Default values - override at runtime with -e or docker-compose environment:
+ENV PORT_NUMBER=8080
+ENV SHARD_NUMBER=1
+
+CMD java -jar target/distributed-kvp-store-1.0-SNAPSHOT.jar $PORT_NUMBER store.properties $SHARD_NUMBER

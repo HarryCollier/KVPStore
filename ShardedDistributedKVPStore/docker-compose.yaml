@@ -1,0 +1,43 @@
+services:
+  node1:
+    build: .
+    ports: 
+      - 8081:8081
+    environment:
+      - PORT_NUMBER=8081
+      - SHARD_NUMBER=1
+  node2:
+    build: .
+    ports: 
+      - 8082:8082
+    environment:
+      - PORT_NUMBER=8082
+      - SHARD_NUMBER=2
+  node3:
+    build: .
+    ports: 
+      - 8083:8083
+    environment:
+      - PORT_NUMBER=8083
+      - SHARD_NUMBER=3
+  node4:
+    build: .
+    ports: 
+      - 8084:8084
+    environment:
+      - PORT_NUMBER=8084
+      - SHARD_NUMBER=1
+  node5:
+    build: .
+    ports: 
+      - 8085:8085
+    environment:
+      - PORT_NUMBER=8085
+      - SHARD_NUMBER=2
+  node6:
+    build: .
+    ports: 
+      - 8086:8086
+    environment:
+      - PORT_NUMBER=8086
+      - SHARD_NUMBER=3
