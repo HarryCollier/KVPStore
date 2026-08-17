@@ -16,12 +16,11 @@ public class Node {
     private static final ExecutorService replicationThreadPool = Executors.newCachedThreadPool();
     
     // connection pool manager, limiting number of connections, and preventing creation overhead
-    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager("localhost", 30);
-
+    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager(30);
     //the shard this node is in, to be filled in by reciving a hearbeat from the router
     private static Shard shard;
-    // the port this node is running on, to be filled in by the main method
-    private static int port;
+    // the address this node is running on, to be filled in by the main method
+    private static Address address;
     
 
     public static void main(String[] args) throws Exception {
@@ -31,11 +30,12 @@ public class Node {
             System.exit(1);
         }
         //get the port and filename from args
-        port = Integer.parseInt(args[0]);
+        int port = Integer.parseInt(args[0]);
+        address = new Address("localhost", port);
         String fileName = args[1];
         
         //using try so it auto closes the serverSocket
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
+        try (ServerSocket serverSocket = new ServerSocket(address.port)) {
             
             //initiate KVP store
             SimpleKVPStore store = new SimpleKVPStore(fileName);
@@ -47,6 +47,7 @@ public class Node {
                 Socket client = serverSocket.accept();
                 System.out.println("Client Connected");
                 //submit a new thread to handle client (using the dedicated server pool)
+
                 serverThreadPool.submit(() -> {
                     try {
                         //initiate read/writes
@@ -70,16 +71,20 @@ public class Node {
                             Command command;
                             //if contains a type then its a command
                             if (node.has("type")) {
-                                //parse into command object
-                                command = mapper.readValue(jsonRequest, Command.class);
-                                //respond to request
-                                respond(command, in, out, store);
+                                if (shard == null) {
+                                    out.println("Node not ready yet, try again shortly");
+                                } else {
+                                    //parse into command object
+                                    command = mapper.readValue(jsonRequest, Command.class);
+                                    //respond to request
+                                    respond(command, in, out, store);
+                                }
                             } else {
                                 //if not a command then its a replication request
                                 shard = mapper.readValue(jsonRequest, Shard.class);
                                 //respond to replication request
                                 System.out.println("Updated shard");
-                                out.println("Shard for port " + port + " updated");
+                                out.println("Shard for address " + address + " updated");
                             }
                         }
                         
@@ -118,7 +123,7 @@ public class Node {
         //if command is a put
         if (type.equals("PUT")) {
             store.put(key, value);
-            if (port == shard.getLeader()) {
+            if (address.equals(shard.getLeader())) {
                 // Fixed: replicate write to ALL followers, not just a random one
                 forwardReqToNodes(command);
             }
@@ -129,7 +134,7 @@ public class Node {
         } // if the command type is a get
         else if (type.equals("GET")) {
             //if port is the leader of the shard, forward the request to the other nodes in the shard
-            if (port == shard.getLeader()) {
+            if (address.equals(shard.getLeader())) {
                 System.out.println("Leader node received GET request, forwarding to a follower...");
                 // Fixed: capture the response from the follower and send it back to the client
                 String response = sendToRandomNode(command);
@@ -152,7 +157,7 @@ public class Node {
         else if (type.equals("DELETE")) {
             //delete that kvp from store
             if (store.remove(key)) {
-                if (port == shard.getLeader()) {
+                if (address.equals(shard.getLeader())) {
                     forwardReqToNodes(command);
                 }
                 //trigers if a key was removed
@@ -174,22 +179,24 @@ public class Node {
     }
 
 
-    private static void sendToNode(int nodePort, String message) {
+    private static void sendToNode(Address nodeAddress, String message) {
         
         //get connection from pool
         NodeConnection conn = null;
-        ConnectionPool pool = connectionPoolManager.getPool(nodePort);
+        ConnectionPool pool = connectionPoolManager.getPool(nodeAddress);
         try {
             conn = pool.borrow();
             //send message to node
             conn.out.println(message);
             // handle response
             conn.in.readLine(); // Read the response from the node (if needed)
+            // only a connection that made it through a full request/response cycle is safe to reuse
+            pool.release(conn);
         } catch (IOException e) {
-            System.err.println("Error sending message to node: " + e.getMessage());
-        } finally {
+            System.err.println("Error sending message to node: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            // connection failed mid-flight - don't put it back in the pool, close it instead
             if (conn != null) {
-                pool.release(conn);
+                conn.close();
             }
         }
 
@@ -212,9 +219,9 @@ public class Node {
 
         // submit all sends in parallel, collecting a Future for each
         List<Future<?>> futures = new ArrayList<>();
-        for (int nodePort : shard.getFollowers()) {
+        for (Address nodeAddress : shard.getFollowers()) {
                 //add future to list (using the dedicated replication pool)
-                Future<?> future = replicationThreadPool.submit(() -> {sendToNode(nodePort, json);});
+                Future<?> future = replicationThreadPool.submit(() -> {sendToNode(nodeAddress, json);});
                 futures.add(future);
             
         }
@@ -234,7 +241,7 @@ public class Node {
 
     // Fixed: Changed return type to String
     private static String sendToRandomNode(Command command) {
-        int nodePort;
+        Address nodeAddress;
         if (shard.getFollowers().isEmpty()) {
             System.out.println("No followers to send to.");
             return "No followers available";
@@ -243,7 +250,7 @@ public class Node {
             //select a random follower
             Random rand = new Random();
             int randomIndex = rand.nextInt(shard.getFollowers().size());
-            nodePort = shard.getFollowers().get(randomIndex);
+            nodeAddress = shard.getFollowers().get(randomIndex);
         }
 
 
@@ -258,22 +265,22 @@ public class Node {
 
 
         //get connection from pool
-        ConnectionPool pool = connectionPoolManager.getPool(nodePort);
+        ConnectionPool pool = connectionPoolManager.getPool(nodeAddress);
         NodeConnection conn = null;
         String result; // Added variable to hold the response
         try {
             conn = pool.borrow();
 
             conn.out.println(req);
-            System.out.println("Sent request to node " + nodePort);
+            System.out.println("Sent request to node " + nodeAddress);
             result = conn.in.readLine(); // Read the response from the node (if needed)
-            System.out.println("Response from node " + nodePort + ": " + result);
+            System.out.println("Response from node " + nodeAddress + ": " + result);
+            pool.release(conn);
         } catch (IOException e) {
-            System.out.println("Node " + nodePort + " unreachable: " + e.getMessage());
+            System.out.println("Node " + nodeAddress + " unreachable: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             result = "Node unreachable";
-        } finally {
             if (conn != null) {
-                pool.release(conn);
+                conn.close();
             }
         }
         

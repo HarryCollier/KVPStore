@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 public class ConsisentHashRing {
     //actual ring structure
-    private final SortedMap<Long, Integer> ring;
+    private final SortedMap<Long, Address> ring;
     //number of entries each node should have in the ring
     private final int virtualNodes;
     //hash function being used
@@ -38,26 +38,26 @@ public class ConsisentHashRing {
     
     /**
      * 
-     * @param n the port num of the node to be added
+     * @param address the node address to be added
      * 
      * adds a node, and all virtual nodes to the ring
      */
-    public void add(int n) {
+    public void add(Address address) {
         for (int i = 0; i < virtualNodes; i++) {
-            long hash = computeHash(n + "#" + i);
-            ring.put(hash, n);
+            long hash = computeHash(address.toString() + "#" + i);
+            ring.put(hash, address);
         }
     }
 
     /**
      * 
-     * @param n the port num of the node to be added
+     * @param address the node address to be removed
      * 
      * removed all nodes, and their virtual nodes from the ring
      */
-    public void remove(int n) {
+    public void remove(Address address) {
         for (int i = 0; i < virtualNodes; i++) {
-            long hash = computeHash(n + "#" + i);
+            long hash = computeHash(address.toString() + "#" + i);
             ring.remove(hash);
         }
     }
@@ -65,20 +65,20 @@ public class ConsisentHashRing {
     /**
      * 
      * @param key the key that is being requested
-     * @return the port number of the node that is responsible for this key
+     * @return the address of the node that is responsible for this key
      * 
-     * returns -1 if the ring is empty
+     * returns null if the ring is empty
      * looks clockwise through the ring, returning the next virtual node encountered
      * if it reaches the end, loop back round
      */
-    public int getNode(String key) {
+    public Address getNode(String key) {
         //if empty
         if (ring.isEmpty()) {
-            return -1;
+            return null;
         }
 
         long hash = computeHash(key);
-        SortedMap<Long, Integer> tailMap = ring.tailMap(hash);
+        SortedMap<Long, Address> tailMap = ring.tailMap(hash);
         if (tailMap.isEmpty()) {
             return ring.get(ring.firstKey());
         } else {

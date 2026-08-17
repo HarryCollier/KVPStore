@@ -1,43 +1,95 @@
+version: '3.8'
+
 services:
+  router:
+    build: .
+    container_name: router
+    ports:
+      - "8080:8080"
+    environment:
+      - CLUSTER_NODES=node1:8081:1,node2:8082:2,node3:8083:3,node4:8084:1,node5:8085:2,node6:8086:3
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Router
+    networks:
+      - kvp_network
+
   node1:
     build: .
-    ports: 
-      - 8081:8081
+    container_name: node1
+    ports:
+      - "8081:8081"
     environment:
+      - NODE_HOST=node1
       - PORT_NUMBER=8081
       - SHARD_NUMBER=1
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8081 node1 store1.properties 1
+    networks:
+      - kvp_network
+
   node2:
     build: .
-    ports: 
-      - 8082:8082
+    container_name: node2
+    ports:
+      - "8082:8082"
     environment:
+      - NODE_HOST=node2
       - PORT_NUMBER=8082
       - SHARD_NUMBER=2
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8082 node2 store2.properties 2
+    networks:
+      - kvp_network
+
   node3:
     build: .
-    ports: 
-      - 8083:8083
+    container_name: node3
+    ports:
+      - "8083:8083"
     environment:
+      - NODE_HOST=node3
       - PORT_NUMBER=8083
       - SHARD_NUMBER=3
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8083 node3 store3.properties 3
+    networks:
+      - kvp_network
+
   node4:
     build: .
-    ports: 
-      - 8084:8084
+    container_name: node4
+    ports:
+      - "8084:8084"
     environment:
+      - NODE_HOST=node4
       - PORT_NUMBER=8084
       - SHARD_NUMBER=1
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8084 node4 store4.properties 1
+    networks:
+      - kvp_network
+
   node5:
     build: .
-    ports: 
-      - 8085:8085
+    container_name: node5
+    ports:
+      - "8085:8085"
     environment:
+      - NODE_HOST=node5
       - PORT_NUMBER=8085
       - SHARD_NUMBER=2
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8085 node5 store5.properties 2
+    networks:
+      - kvp_network
+
   node6:
     build: .
-    ports: 
-      - 8086:8086
+    container_name: node6
+    ports:
+      - "8086:8086"
     environment:
+      - NODE_HOST=node6
       - PORT_NUMBER=8086
       - SHARD_NUMBER=3
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8086 node6 store6.properties 3
+    networks:
+      - kvp_network
+
+networks:
+  kvp_network:
+    driver: bridge

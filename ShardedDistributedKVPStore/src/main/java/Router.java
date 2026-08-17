@@ -11,10 +11,13 @@ public class Router {
 
     private static final ObjectMapper mapper = new ObjectMapper();
     //thread pool limiting number of threads
-    private static final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+    // dedicated pool for long-lived client connections
+    private static final ExecutorService clientThreadPool = Executors.newFixedThreadPool(20);
+    // dedicated pool for short-lived heartbeat sends, so a stuck client or node connection
+    // can never block heartbeats (or vice versa)
+    private static final ExecutorService heartbeatThreadPool = Executors.newCachedThreadPool();
     //connection pool, limiting number of connections, and preventing creation overhead
-    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager("localhost", 30);
-
+    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager(30);
     public static void main(String[] args) throws Exception {
         
 
@@ -22,39 +25,47 @@ public class Router {
         try (ServerSocket serverSocket = new ServerSocket(8080)) {
 
             //get all nodes in the cluster.conf file
-            List<String> nodes = Files.readAllLines(Paths.get("cluster.conf"));
-            
-            //initiate the ring
+            // Get node topology from environment variable instead of cluster.conf
+            String rawNodes = System.getenv().getOrDefault("CLUSTER_NODES", "");
+            if (rawNodes.trim().isEmpty()) {
+                System.err.println("ERROR: CLUSTER_NODES environment variable is not set.");
+                System.exit(1);
+            }
+
+            String[] nodes = rawNodes.split(",");
+
             ConsisentHashRing ring = new ConsisentHashRing(100);
-            //initiate a map of ids to shards
             Map<Integer, Shard> shardMap = new HashMap<>();
-            //go through nodes and add each ports number to the ring
-            for (int i = 0; i < nodes.size(); i++) {
-                //split line into data
-                String[] line = nodes.get(i).split(" ");
+
+            for (String nodeEntry : nodes) {
+                if (nodeEntry.trim().isEmpty()) continue;
+                
+                // Parse "node1:8081:1" into host, port, and shardId
+                String[] line = nodeEntry.trim().split(":");
+                String host = line[0];
+                int nodesPNum = Integer.parseInt(line[1]);
                 int shardId = Integer.parseInt(line[2]);
-                int nodesPNum = Integer.parseInt(line[0]);
-                //if the shard is in the map, add this node as a follower, if it isnt then add a new shard to the map and the ring, with its leader being this node
+                Address nodeAddress = new Address(host, nodesPNum);
+
                 shardMap.compute(shardId, (key, currV) -> {
                     if (currV == null) {
-                        Shard shard = new Shard(shardId,nodesPNum);
-                        ring.add(shardId);
+                        Shard shard = new Shard(shardId, nodeAddress);
+                        ring.add(nodeAddress);
                         return shard;
                     } else {
-                        currV.addFollower(nodesPNum);
+                        currV.addFollower(nodeAddress);
                         return currV;
                     }
                 });
-
             }
 
             //spawn new thread, should be seperate from pool, as only spawned once, and will run forever
             new Thread(() -> {
 
                 // compute targets once, before entering the loop
-                Map<Shard, List<Integer>> shardTargets = new HashMap<>();
+                Map<Shard, List<Address>> shardTargets = new HashMap<>();
                 for (Shard shard : shardMap.values()) {
-                    List<Integer> targets = new ArrayList<>(shard.getFollowers());
+                    List<Address> targets = new ArrayList<>(shard.getFollowers());
                     targets.add(shard.getLeader());
                     shardTargets.put(shard, targets);
                 }
@@ -62,13 +73,13 @@ public class Router {
                 // loop is now dedicated purely to sending
                 while (true) {
                     System.out.println("Sending shard info to nodes...");
-                    for (Map.Entry<Shard, List<Integer>> entry : shardTargets.entrySet()) {
-                        for (int nodePort : entry.getValue()) {
-                            threadPool.submit(() -> {
+                    for (Map.Entry<Shard, List<Address>> entry : shardTargets.entrySet()) {
+                        for (Address nodeAddress : entry.getValue()) {
+                            heartbeatThreadPool.submit(() -> {
                                 try {
-                                    sendToNode(nodePort, mapper.writeValueAsString(entry.getKey()));
+                                    sendToNode(nodeAddress, mapper.writeValueAsString(entry.getKey()));
                                 } catch (IOException e) {
-                                    System.err.println("Error sending shard info to node " + nodePort + ": " + e.getMessage());
+                                    System.err.println("Error sending shard info to node " + nodeAddress + ": " + e.getMessage());
                                 }
                             });
                         }
@@ -100,7 +111,7 @@ public class Router {
                 );
 
 
-                threadPool.submit(() ->{
+                clientThreadPool.submit(() ->{
                     try {
                         Command command = null;
 
@@ -120,15 +131,16 @@ public class Router {
                                 client.close();
                                 return;
                             }
-                            //get the shardId that is repsonsible for this command
-                            int shardId = ring.getNode(command.getKey());
-                            //get the shard
-                            Shard shard = shardMap.get(shardId);
-                            //get the leader of the shard
-                            int leader = shard.getLeader();
+                            //get the node Address that is responsible for this command
+                            Address nodeAddress = ring.getNode(command.getKey());
+
+                            if (nodeAddress == null) {
+                                outClient.println("No node available");
+                                continue;
+                            }
 
                             //get the correct pool for this leader (creating if it doesnt exist)
-                            ConnectionPool pool = connectionPoolManager.getPool(leader);
+                            ConnectionPool pool = connectionPoolManager.getPool(nodeAddress);
 
                             //borrow a connection from the pool
                             NodeConnection nodeConn = pool.borrow();
@@ -136,14 +148,22 @@ public class Router {
                             //convert command object into a JSON
                             String jsonRequest = mapper.writeValueAsString(command);
 
-                            //send json to Node
-                            nodeConn.out.println(jsonRequest);
-                            //get response
-                            String response = nodeConn.in.readLine();
-                            //send response to client
-                            outClient.println(response);
-                            //close node and client
-                        
+                            try {
+                                //send json to Node
+                                nodeConn.out.println(jsonRequest);
+                                //get response
+                                String response = nodeConn.in.readLine();
+                                //send response to client
+                                outClient.println(response);
+                                //release connection back to pool
+                                pool.release(nodeConn);
+                            } catch (IOException e) {
+                                // node didn't respond in time - don't kill the whole client
+                                // connection over one bad node, and don't reuse the broken connection
+                                System.out.println("Node " + nodeAddress + " unreachable: " + e.getClass().getSimpleName());
+                                nodeConn.close();
+                                outClient.println("Node unreachable, try again");
+                            }
                         }
                     }
                     catch (IOException e){
@@ -160,9 +180,9 @@ public class Router {
 
 
 
-
-    private static void sendToNode(int nodePort, String message) {
-        ConnectionPool pool = connectionPoolManager.getPool(nodePort);
+    
+    private static void sendToNode(Address nodeAddress, String message) {
+        ConnectionPool pool = connectionPoolManager.getPool(nodeAddress);
         NodeConnection conn = null;
         try {
             conn = pool.borrow();
@@ -173,8 +193,11 @@ public class Router {
             pool.release(conn);
 
         } catch (IOException e) {
-            System.out.println("Node " + nodePort + " unreachable: " + e.getMessage());
-            
+            System.out.println("Node " + nodeAddress + " unreachable: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            // don't leak or reuse a connection that just failed - close it instead of releasing it
+            if (conn != null) {
+                conn.close();
+            }
         }
     }
 }

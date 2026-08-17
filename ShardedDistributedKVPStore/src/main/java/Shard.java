@@ -2,27 +2,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Shard {
-    private int leader;
-    //uniquely identifying name
+    private Address leader;
     private int id;
-    private List<Integer> followers;
+    private List<Address> followers;
 
-    //default constructor for jackson
     public Shard() {
         followers = new ArrayList<>();
     }
 
-    //first node added is going to be the leader, so just initiate followers
-    public Shard(int id, int leader) {
+    public Shard(int id, Address leader) {
         this.leader = leader;
         this.id = id;
         this.followers = new ArrayList<>();
     }
-    //getters
-    public int getLeader() {return leader;}
-    public int getId() {return id;}
-    public List<Integer> getFollowers() {return followers;}
 
-    //adds follower
-    public void addFollower(int follower) {followers.add(follower);}
+    public Address getLeader() { return leader; }
+    public int getId() { return id; }
+    public List<Address> getFollowers() { return followers; }
+
+    public void setLeader(Address leader) { this.leader = leader; }
+    public void setId(int id) { this.id = id; }
+    public void setFollowers(List<Address> followers) { this.followers = followers; }
+
+    public void addFollower(Address follower) { followers.add(follower); }
 }

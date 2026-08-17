@@ -1,20 +1,18 @@
 import java.util.concurrent.*;
 
 public class NodeConnectionPoolManager {
-    private final ConcurrentHashMap<Integer, ConnectionPool> poolMap = new ConcurrentHashMap<>();
-    private final String host;
+    private final ConcurrentHashMap<Address, ConnectionPool> poolMap = new ConcurrentHashMap<>();
     private final int maxPerNode;
 
-    public NodeConnectionPoolManager(String host, int maxPerNode) {
-        this.host = host;
+    public NodeConnectionPoolManager(int maxPerNode) {
         this.maxPerNode = maxPerNode;
     }
 
-    public ConnectionPool getPool(int port) {
-        return poolMap.computeIfAbsent(port, p -> new ConnectionPool(host, p, maxPerNode));
+    public ConnectionPool getPool(Address address) {
+        return poolMap.computeIfAbsent(address, a -> new ConnectionPool(a, maxPerNode));
     }
 
-    public void shutdownAll(){
+    public void shutdownAll() {
         poolMap.values().forEach(ConnectionPool::shutdown);
     }
 }

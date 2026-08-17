@@ -1,5 +1,7 @@
 Client.class
 NodeConnection.class
+Address.class
+Benchmark.class
 ConnectionPool.class
 Shard.class
 NodeConnectionPoolManager.class

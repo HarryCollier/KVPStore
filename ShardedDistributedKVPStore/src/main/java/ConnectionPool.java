@@ -2,16 +2,14 @@ import java.io.*;
 import java.net.*;
 import java.util.concurrent.*;
 
-public class ConnectionPool{
-    private final String host;
-    private final int port;
+public class ConnectionPool {
+    private final Address address;
     private final int maxSize;
     private final BlockingQueue<NodeConnection> pool;
     private boolean isShutdown = false;
 
-    public ConnectionPool(String host, int port, int maxSize) {
-        this.host = host;
-        this.port = port;
+    public ConnectionPool(Address address, int maxSize) {
+        this.address = address;
         this.maxSize = maxSize;
         this.pool = new LinkedBlockingQueue<>(maxSize);
     }
@@ -19,13 +17,13 @@ public class ConnectionPool{
     public NodeConnection borrow() throws IOException {
         NodeConnection conn = pool.poll();
 
-        while(conn != null && !conn.isAlive()) {
+        while (conn != null && !conn.isAlive()) {
             conn.close();
             conn = pool.poll();
         }
 
         if (conn == null) {
-            conn = new NodeConnection(host, port);
+            conn = new NodeConnection(address.host, address.port);
         }
 
         return conn;
@@ -38,13 +36,12 @@ public class ConnectionPool{
             conn.close();
         }
     }
-    
+
     public void shutdown() {
         NodeConnection conn;
         isShutdown = true;
         while ((conn = pool.poll()) != null) {
             conn.close();
         }
-
     }
 }

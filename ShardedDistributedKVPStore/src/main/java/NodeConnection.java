@@ -9,6 +9,9 @@ public class NodeConnection {
 
     public NodeConnection(String host, int port) throws IOException {
         this.socket = new Socket(host, port);
+        // if the other side never responds, readLine() will throw SocketTimeoutException
+        // instead of blocking the calling thread forever
+        this.socket.setSoTimeout(5000);
         this.out = new PrintWriter(socket.getOutputStream(), true);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
     }
