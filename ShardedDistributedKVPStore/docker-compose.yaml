@@ -9,6 +9,7 @@ services:
     environment:
       - CLUSTER_NODES=node1:8081:1,node2:8082:2,node3:8083:3,node4:8084:1,node5:8085:2,node6:8086:3
     command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Router
+    
     networks:
       - kvp_network
 
@@ -22,6 +23,9 @@ services:
       - PORT_NUMBER=8081
       - SHARD_NUMBER=1
     command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8081 node1 store1.properties 1
+    volumes:
+      - node1_data:/app
+
     networks:
       - kvp_network
 
@@ -35,6 +39,9 @@ services:
       - PORT_NUMBER=8082
       - SHARD_NUMBER=2
     command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8082 node2 store2.properties 2
+    volumes:
+      - node2_data:/app
+
     networks:
       - kvp_network
 
@@ -48,6 +55,9 @@ services:
       - PORT_NUMBER=8083
       - SHARD_NUMBER=3
     command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8083 node3 store3.properties 3
+    volumes:
+      - node3_data:/app
+
     networks:
       - kvp_network
 
@@ -61,6 +71,9 @@ services:
       - PORT_NUMBER=8084
       - SHARD_NUMBER=1
     command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8084 node4 store4.properties 1
+    volumes:
+      - node4_data:/app
+
     networks:
       - kvp_network
 
@@ -74,6 +87,9 @@ services:
       - PORT_NUMBER=8085
       - SHARD_NUMBER=2
     command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8085 node5 store5.properties 2
+    volumes:
+      - node5_data:/app
+
     networks:
       - kvp_network
 
@@ -87,8 +103,19 @@ services:
       - PORT_NUMBER=8086
       - SHARD_NUMBER=3
     command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8086 node6 store6.properties 3
+    volumes:
+      - node6_data:/app
+
     networks:
       - kvp_network
+      
+volumes:
+  node1_data:
+  node2_data:
+  node3_data:
+  node4_data:   
+  node5_data:
+  node6_data:
 
 networks:
   kvp_network:

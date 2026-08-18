@@ -21,6 +21,8 @@ public class Node {
     private static Shard shard;
     // the address this node is running on, to be filled in by the main method
     private static Address address;
+    //append only log file for this node
+    private static BufferedWriter logWriter;
     
 
     public static void main(String[] args) throws Exception {
@@ -31,7 +33,8 @@ public class Node {
         }
         //get the port and filename from args
         int port = Integer.parseInt(args[0]);
-        address = new Address("localhost", port);
+        String host = System.getenv().getOrDefault("NODE_HOST", "localhost");
+        address = new Address(host, port);
         String fileName = args[1];
         
         //using try so it auto closes the serverSocket
@@ -39,6 +42,9 @@ public class Node {
             
             //initiate KVP store
             SimpleKVPStore store = new SimpleKVPStore(fileName);
+
+            //initiate log writer
+            logWriter = new BufferedWriter(new FileWriter("node.log", true));
 
             System.out.println("Server Started...");
 
@@ -129,6 +135,7 @@ public class Node {
             }
 
             out.println("Input stored successfully");
+            writeLog("PUT " + key + " " + value); // Log the put operation
             System.out.println("Request stored sucessfully");
 
         } // if the command type is a get
@@ -162,6 +169,7 @@ public class Node {
                 }
                 //trigers if a key was removed
                 out.println("Removed key: " + key +" from store");
+                writeLog("DELETE " + key); // Log the deletion
                 System.out.println("KVP sucessfully deleted");
             }
             else {
@@ -179,6 +187,17 @@ public class Node {
     }
 
 
+    private static void writeLog(String entry) {
+        try {
+            logWriter.write(entry);
+            logWriter.newLine();
+            logWriter.flush();
+        } catch (IOException e) {
+            System.err.println("Error writing to log: " + e.getMessage());
+        }
+    }
+
+
     private static void sendToNode(Address nodeAddress, String message) {
         
         //get connection from pool
@@ -187,6 +206,7 @@ public class Node {
         try {
             conn = pool.borrow();
             //send message to node
+            System.out.println("Sending message to node " + nodeAddress.getPort() + ": " + message);
             conn.out.println(message);
             // handle response
             conn.in.readLine(); // Read the response from the node (if needed)
