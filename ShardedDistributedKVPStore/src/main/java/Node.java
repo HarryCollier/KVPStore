@@ -26,6 +26,7 @@ public class Node {
     
 
     public static void main(String[] args) throws Exception {
+        System.out.println("BUILD MARKER !*");
         // if too few args entered, return error
         if (args.length < 3) {
             System.err.println("ERROR: missing arguments for PORTNUMBER PROPERTIESFILE SHARDNUMBER");
@@ -44,7 +45,7 @@ public class Node {
             SimpleKVPStore store = new SimpleKVPStore(fileName);
 
             //initiate log writer
-            logWriter = new BufferedWriter(new FileWriter("node.log", true));
+            logWriter = new BufferedWriter(new FileWriter("data/node.log", true));
 
             System.out.println("Server Started...");
 
@@ -79,6 +80,7 @@ public class Node {
                             if (node.has("type")) {
                                 if (shard == null) {
                                     out.println("Node not ready yet, try again shortly");
+                                    System.out.println("Node not ready yet, try again shortly");
                                 } else {
                                     //parse into command object
                                     command = mapper.readValue(jsonRequest, Command.class);
@@ -125,6 +127,8 @@ public class Node {
         String type = command.getType();
         String key = command.getKey();
         String value = command.getValue();
+
+        System.out.println("Address is " + address.prettyPrint() + " and shard is " + shard.prettyPrint());
 
         //if command is a put
         if (type.equals("PUT")) {
@@ -239,8 +243,10 @@ public class Node {
 
         // submit all sends in parallel, collecting a Future for each
         List<Future<?>> futures = new ArrayList<>();
+        System.out.println("Forwarding request to followers of shard " + shard.getId());
         for (Address nodeAddress : shard.getFollowers()) {
                 //add future to list (using the dedicated replication pool)
+                System.out.println("Forwarding request to node " + nodeAddress.getPort() + ": " + json);
                 Future<?> future = replicationThreadPool.submit(() -> {sendToNode(nodeAddress, json);});
                 futures.add(future);
             

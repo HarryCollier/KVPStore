@@ -22,9 +22,9 @@ services:
       - NODE_HOST=node1
       - PORT_NUMBER=8081
       - SHARD_NUMBER=1
-    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8081 node1 store1.properties 1
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8081 store1.properties 1
     volumes:
-      - node1_data:/app
+      - node1_data:/app/data
 
     networks:
       - kvp_network
@@ -38,9 +38,9 @@ services:
       - NODE_HOST=node2
       - PORT_NUMBER=8082
       - SHARD_NUMBER=2
-    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8082 node2 store2.properties 2
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8082 store2.properties 2
     volumes:
-      - node2_data:/app
+      - node2_data:/app/data
 
     networks:
       - kvp_network
@@ -54,9 +54,9 @@ services:
       - NODE_HOST=node3
       - PORT_NUMBER=8083
       - SHARD_NUMBER=3
-    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8083 node3 store3.properties 3
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8083 store3.properties 3
     volumes:
-      - node3_data:/app
+      - node3_data:/app/data
 
     networks:
       - kvp_network
@@ -70,9 +70,9 @@ services:
       - NODE_HOST=node4
       - PORT_NUMBER=8084
       - SHARD_NUMBER=1
-    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8084 node4 store4.properties 1
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8084 store4.properties 1
     volumes:
-      - node4_data:/app
+      - node4_data:/app/data
 
     networks:
       - kvp_network
@@ -86,9 +86,9 @@ services:
       - NODE_HOST=node5
       - PORT_NUMBER=8085
       - SHARD_NUMBER=2
-    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8085 node5 store5.properties 2
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8085 store5.properties 2
     volumes:
-      - node5_data:/app
+      - node5_data:/app/data
 
     networks:
       - kvp_network
@@ -102,9 +102,9 @@ services:
       - NODE_HOST=node6
       - PORT_NUMBER=8086
       - SHARD_NUMBER=3
-    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8086 node6 store6.properties 3
+    command: java -cp target/distributed-kvp-store-1.0-SNAPSHOT.jar Node 8086 store6.properties 3
     volumes:
-      - node6_data:/app
+      - node6_data:/app/data
 
     networks:
       - kvp_network

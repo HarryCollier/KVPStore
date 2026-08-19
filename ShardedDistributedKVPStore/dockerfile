@@ -5,6 +5,7 @@ COPY pom.xml ./
 COPY src ./src
 
 RUN mvn package -DskipTests
+RUN mkdir -p /app/data
 
 # Default values - override at runtime with -e or docker-compose environment:
 ENV PORT_NUMBER=8080

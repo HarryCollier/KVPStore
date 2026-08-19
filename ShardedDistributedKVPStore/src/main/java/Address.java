@@ -42,4 +42,8 @@ public class Address {
     public String toString() {
         return host + ":" + port;
     }
+
+    public String prettyPrint() {
+        return "Address{host='" + host + "', port=" + port + "}";
+    }
 }

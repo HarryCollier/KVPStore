@@ -25,4 +25,17 @@ public class Shard {
     public void setFollowers(List<Address> followers) { this.followers = followers; }
 
     public void addFollower(Address follower) { followers.add(follower); }
+
+    public String prettyPrint() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Shard{id=").append(id).append(", leader=").append(leader.prettyPrint()).append(", followers=[");
+        for (Address follower : followers) {
+            sb.append(follower.prettyPrint()).append(", ");
+        }
+        if (!followers.isEmpty()) {
+            sb.setLength(sb.length() - 2); // Remove last comma and space
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
 }
