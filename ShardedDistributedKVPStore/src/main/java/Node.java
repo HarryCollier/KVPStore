@@ -23,10 +23,15 @@ public class Node {
     private static Address address;
     //append only log file for this node
     private static BufferedWriter logWriter;
+    // path to the action log, kept so we can count existing lines on startup
+    private static final String LOG_PATH = "data/node.log";
+    // this node's current position in the action log - i.e. how many entries
+    // it has applied since starting. Increments by one every time this node
+    // processes a PUT or DELETE, regardless of whether it's a leader or follower.
+    private static long logOffset = 0;
     
 
     public static void main(String[] args) throws Exception {
-        System.out.println("BUILD MARKER !*");
         // if too few args entered, return error
         if (args.length < 3) {
             System.err.println("ERROR: missing arguments for PORTNUMBER PROPERTIESFILE SHARDNUMBER");
@@ -44,8 +49,16 @@ public class Node {
             //initiate KVP store
             SimpleKVPStore store = new SimpleKVPStore(fileName);
 
-            //initiate log writer
-            logWriter = new BufferedWriter(new FileWriter("data/node.log", true));
+            // make sure the data directory exists before we try to open a file in it
+            new File("data").mkdirs();
+
+            // count existing entries so we know where to resume numbering from -
+            // this is what makes the log "pick up where it left off" after a restart
+            logOffset = countExistingLogLines(LOG_PATH);
+            System.out.println("Resuming action log at offset " + logOffset);
+
+            //initiate log writer - append mode, so restarting never overwrites past entries
+            logWriter = new BufferedWriter(new FileWriter(LOG_PATH, true));
 
             System.out.println("Server Started...");
 
@@ -133,13 +146,14 @@ public class Node {
         //if command is a put
         if (type.equals("PUT")) {
             store.put(key, value);
+            writeLog("PUT", key, value);
+
             if (address.equals(shard.getLeader())) {
                 // Fixed: replicate write to ALL followers, not just a random one
                 forwardReqToNodes(command);
             }
 
             out.println("Input stored successfully");
-            writeLog("PUT " + key + " " + value); // Log the put operation
             System.out.println("Request stored sucessfully");
 
         } // if the command type is a get
@@ -168,12 +182,15 @@ public class Node {
         else if (type.equals("DELETE")) {
             //delete that kvp from store
             if (store.remove(key)) {
+
+                writeLog("DELETE", key, "");
+
                 if (address.equals(shard.getLeader())) {
                     forwardReqToNodes(command);
                 }
+
                 //trigers if a key was removed
                 out.println("Removed key: " + key +" from store");
-                writeLog("DELETE " + key); // Log the deletion
                 System.out.println("KVP sucessfully deleted");
             }
             else {
@@ -190,10 +207,41 @@ public class Node {
         
     }
 
+    /**
+     * Counts how many entries already exist in the action log, so a restarted
+     * node knows what offset to resume numbering from instead of starting at 0
+     * and colliding with entries it already logged before it stopped.
+     */
+    private static long countExistingLogLines(String path) {
+        File f = new File(path);
+        if (!f.exists()) {
+            return 0;
+        }
+        long count = 0;
+        try (BufferedReader reader = new BufferedReader(new FileReader(f))) {
+            while (reader.readLine() != null) {
+                count++;
+            }
+        } catch (IOException e) {
+            System.err.println("Error counting existing log lines: " + e.getMessage());
+        }
+        return count;
+    }
 
-    private static void writeLog(String entry) {
+    /**
+     * Increments this node's local log counter and appends the entry under
+     * that new number. Called whenever this node applies a PUT or DELETE.
+     */
+    private static synchronized long writeLog(String type, String key, String value) {
+        logOffset++;
+        appendLogLine(logOffset, type, key, value);
+        return logOffset;
+    }
+
+    private static void appendLogLine(long offset, String type, String key, String value) {
         try {
-            logWriter.write(entry);
+            String line = offset + " " + type + " " + key + (value != null && !value.isEmpty() ? " " + value : "");
+            logWriter.write(line);
             logWriter.newLine();
             logWriter.flush();
         } catch (IOException e) {
