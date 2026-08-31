@@ -1,7 +1,17 @@
+// Command.java
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 public class Command {
     private String type;
     private String key;
     private String value;
+
+    // Leader-assigned global sequence number. Null on plain client GET/PUT/DELETE
+    // requests (they haven't been ordered against the log yet). Populated once the
+    // leader assigns a slot and forwards it, and reused to carry a follower's
+    // current offset when it issues a SYNC request.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Long offset;
 
     /**
      * basic constructor for reflection when converting to json
@@ -18,6 +28,18 @@ public class Command {
         this.type = type;
         this.key = key;
         this.value = value;
+    }
+
+    /**
+     * Same as above, plus an explicit offset - used for replicated PUT/DELETE
+     * (leader stamps its assigned offset) and for SYNC requests (follower
+     * stamps its current offset).
+     */
+    public Command(String type, String key, String value, Long offset) {
+        this.type = type;
+        this.key = key;
+        this.value = value;
+        this.offset = offset;
     }
 
     /**
@@ -50,4 +72,6 @@ public class Command {
     public String getType() {return this.type;}
     public String getKey() {return this.key;}
     public String getValue() {return this.value;}
+    public Long getOffset() {return this.offset;}
+    public void setOffset(Long offset) {this.offset = offset;}
 }

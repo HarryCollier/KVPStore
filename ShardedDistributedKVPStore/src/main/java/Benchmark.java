@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class Benchmark {
-    private static final int CONCURRENT_THREADS = 8;
+    private static final int CONCURRENT_THREADS = 128;
     private static final String HOST = "localhost";
     private static final int PORT = 8080;
 
@@ -108,6 +108,8 @@ public class Benchmark {
         long p95Ns = allLatencies.get((int) (count * 0.95));
         long p99Ns = allLatencies.get((int) (count * 0.99));
         long p999Ns = allLatencies.get((int) (count * 0.999));
+        long p9999Ns = allLatencies.get((int) (count * 0.9999));
+
 
         System.out.println("\n--- Benchmark Results ---");
         System.out.printf("Total Requests: %d%n", count);
@@ -121,7 +123,8 @@ public class Benchmark {
         System.out.printf("p95 Latency:    %.3f ms%n", p95Ns / 1_000_000.0);
         System.out.printf("p99 Latency:    %.3f ms%n", p99Ns / 1_000_000.0);
         System.out.printf("p999 Latency:    %.3f ms%n", p999Ns / 1_000_000.0);
-        System.out.println(allLatencies.get(allLatencies.size()-1)/1_000_000.0);
+        System.out.printf("p9999 Latency:   %.3f ms%n", p9999Ns / 1_000_000.0);
+        System.out.printf("Max Latency:    %.3f ms%n", allLatencies.get(allLatencies.size() - 1) / 1_000_000.0);
 
        
     }

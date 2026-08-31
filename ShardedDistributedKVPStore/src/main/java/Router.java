@@ -1,3 +1,4 @@
+// Router.java
 import java.io.*;
 import java.net.*;
 import java.nio.file.Files;
@@ -12,7 +13,7 @@ public class Router {
     private static final ObjectMapper mapper = new ObjectMapper();
     //thread pool limiting number of threads
     // dedicated pool for long-lived client connections
-    private static final ExecutorService clientThreadPool = Executors.newFixedThreadPool(20);
+    private static final ExecutorService clientThreadPool = Executors.newFixedThreadPool(200);
     // dedicated pool for short-lived heartbeat sends, so a stuck client or node connection
     // can never block heartbeats (or vice versa)
     private static final ExecutorService heartbeatThreadPool = Executors.newCachedThreadPool();
@@ -72,7 +73,7 @@ public class Router {
 
                 // loop is now dedicated purely to sending
                 while (true) {
-                    System.out.println("Sending shard info to nodes...");
+                    //System.out.println("Sending shard info to nodes...");
                     for (Map.Entry<Shard, List<Address>> entry : shardTargets.entrySet()) {
                         for (Address nodeAddress : entry.getValue()) {
                             heartbeatThreadPool.submit(() -> {
@@ -94,12 +95,12 @@ public class Router {
                 }
             }).start();
 
-            System.out.println("Server started...");
+            //System.out.println("Server started...");
             //loop forever
             while (true) {
                 //wait for a client
                 Socket client = serverSocket.accept();
-                System.out.println("Client accepted");
+                //System.out.println("Client accepted");
         
                 //set I/Os
                 PrintWriter outClient = new PrintWriter(
@@ -126,7 +127,7 @@ public class Router {
                                 command = new Command(request);
                             } catch (IllegalArgumentException e) {
                                 //wrong arguments, so error, and close client
-                                System.out.println("Error parsing request");
+                                //System.out.println("Error parsing request");
                                 outClient.println(e.getMessage());
                                 client.close();
                                 return;
@@ -160,14 +161,14 @@ public class Router {
                             } catch (IOException e) {
                                 // node didn't respond in time - don't kill the whole client
                                 // connection over one bad node, and don't reuse the broken connection
-                                System.out.println("Node " + nodeAddress + " unreachable: " + e.getClass().getSimpleName());
+                                //System.out.println("Node " + nodeAddress + " unreachable: " + e.getClass().getSimpleName());
                                 nodeConn.close();
                                 outClient.println("Node unreachable, try again");
                             }
                         }
                     }
                     catch (IOException e){
-                        System.out.println("Error in router transmissions: " + e.getMessage());
+                        //System.out.println("Error in router transmissions: " + e.getMessage());
                     }
                 });
             }
@@ -183,21 +184,39 @@ public class Router {
     
     private static void sendToNode(Address nodeAddress, String message) {
         ConnectionPool pool = connectionPoolManager.getPool(nodeAddress);
-        NodeConnection conn = null;
-        try {
-            conn = pool.borrow();
-            conn.out.println(message);
 
-            // handle response
-            String response = conn.in.readLine();
-            pool.release(conn);
+        // try twice: once with whatever borrow() gives us (possibly a stale pooled
+        // connection), and if that's dead, once more with a guaranteed-fresh one.
+        // Real distributed systems retry on discovered failures for exactly this
+        // reason - a dead connection getting cleaned up shouldn't cost a whole
+        // heartbeat cycle.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            NodeConnection conn = null;
+            try {
+                conn = pool.borrow();
+                conn.out.println(message);
 
-        } catch (IOException e) {
-            System.out.println("Node " + nodeAddress + " unreachable: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            // don't leak or reuse a connection that just failed - close it instead of releasing it
-            if (conn != null) {
-                conn.close();
+                String response = conn.in.readLine();
+                if (response == null) {
+                    // peer closed its end (EOF) - connection is dead even though no
+                    // exception was thrown; don't hand it back to the pool
+                    //System.out.println("Node " + nodeAddress + " connection closed (EOF), discarding");
+                    conn.close();
+                    continue; // retry with a fresh connection
+                }
+
+                pool.release(conn);
+                return; // success
+
+            } catch (IOException e) {
+                //System.out.println("Node " + nodeAddress + " unreachable: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                if (conn != null) {
+                    conn.close();
+                }
+                // fall through to retry on attempt 0; on attempt 1 the loop just ends
             }
         }
+
+        //System.out.println("Node " + nodeAddress + " unreachable after retry, giving up for this cycle");
     }
 }

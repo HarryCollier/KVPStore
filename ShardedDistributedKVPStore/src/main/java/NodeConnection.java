@@ -17,7 +17,7 @@ public class NodeConnection {
     }
 
     public boolean isAlive() {
-        return socket.isConnected() && !socket.isClosed();
+        return !socket.isClosed();
     }
 
     public void close() {

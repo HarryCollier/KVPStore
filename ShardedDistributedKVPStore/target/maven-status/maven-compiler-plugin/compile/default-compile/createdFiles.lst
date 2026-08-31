@@ -1,7 +1,13 @@
+Node$1.class
 Client.class
 NodeConnection.class
+SimpleKVPStore.class
+Shard.class
+Command.class
+ConsisentHashRing.class
+Node.class
 Address.class
 Benchmark.class
+Router.class
 ConnectionPool.class
-Shard.class
 NodeConnectionPoolManager.class
