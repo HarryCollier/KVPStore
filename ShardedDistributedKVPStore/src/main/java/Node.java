@@ -14,12 +14,12 @@ public class Node {
     private static final ObjectMapper mapper = new ObjectMapper();
     
     //prevents too many threads being spawned for incoming client connections
-    private static final ExecutorService serverThreadPool = Executors.newFixedThreadPool(200);
+    private static final ExecutorService serverThreadPool = Executors.newFixedThreadPool(100);
     // prevents thread starvation by handling outgoing node-to-node replication separately
     private static final ExecutorService replicationThreadPool = Executors.newCachedThreadPool();
     
     // connection pool manager, limiting number of connections, and preventing creation overhead
-    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager(30);
+    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager(64);
     //the shard this node is in, to be filled in by reciving a hearbeat from the router
     //volatile: set by whichever connection thread handles the heartbeat, read by every
     //request-handling and replication thread
@@ -62,6 +62,17 @@ public class Node {
 
     // ensures only one catch-up attempt is in flight at a time
     private static final AtomicBoolean catchUpTriggered = new AtomicBoolean(false);
+
+    // one dedicated single-threaded executor per follower address. Writes to a
+    // given follower are always delivered in the exact order they were enqueued,
+    // since only one thread ever calls sendToNode for that follower - eliminating
+    // the out-of-order delivery that was falsely triggering resyncs under load.
+    // Different followers still get delivered to in parallel via their own queues.
+    private static final ConcurrentHashMap<Address, ExecutorService> followerQueues = new ConcurrentHashMap<>();
+
+    private static ExecutorService getFollowerQueue(Address followerAddress) {
+        return followerQueues.computeIfAbsent(followerAddress, a -> Executors.newSingleThreadExecutor());
+    }
     
 
     public static void main(String[] args) throws Exception {
@@ -189,13 +200,18 @@ public class Node {
         //if command is a put
         if (type.equals("PUT")) {
             if (address.equals(shard.getLeader())) {
-                long assignedOffset;
+                List<Future<?>> futures;
                 synchronized (storeLock) {
                     store.put(key, value);
-                    assignedOffset = writeLog("PUT", key, value);
+                    long assignedOffset = writeLog("PUT", key, value);
+                    // enqueue INSIDE the lock, so enqueue order matches offset-assignment
+                    // order even if another thread is doing the same thing concurrently
+                    futures = enqueueForFollowers(new Command("PUT", key, value, assignedOffset));
                 }
-                // stamp the offset we just assigned before fanning it out
-                forwardReqToNodes(new Command("PUT", key, value, assignedOffset));
+                // wait for delivery OUTSIDE the lock - this only delays the response to
+                // *this* client, it doesn't stall other threads from assigning/enqueueing
+                // their own writes in the meantime
+                waitForReplication(futures);
                 out.println("Input stored successfully");
                 //System.out.println("Request stored sucessfully");
             } else {
@@ -235,17 +251,17 @@ public class Node {
             if (address.equals(shard.getLeader())) {
                 //delete that kvp from store
                 boolean removed;
-                long assignedOffset;
+                List<Future<?>> futures = new ArrayList<>();
                 synchronized (storeLock) {
                     removed = store.remove(key);
                     if (removed) {
-                        assignedOffset = writeLog("DELETE", key, "");
-                    } else {
-                        assignedOffset = -1;
+                        long assignedOffset = writeLog("DELETE", key, "");
+                        // enqueue inside the lock - same ordering guarantee as PUT
+                        futures = enqueueForFollowers(new Command("DELETE", key, "", assignedOffset));
                     }
                 }
                 if (removed) {
-                    forwardReqToNodes(new Command("DELETE", key, "", assignedOffset));
+                    waitForReplication(futures);
                     //trigers if a key was removed
                     out.println("Removed key: " + key +" from store");
                     //System.out.println("KVP sucessfully deleted");
@@ -570,36 +586,45 @@ public class Node {
         //System.out.println("Node " + nodeAddress + " unreachable after retry, giving up for this cycle");
     }
 
-    private static void forwardReqToNodes(Command command) {
-        //if shard is null dont forward req
+    /**
+     * Serializes the command and hands it off to each follower's dedicated
+     * ordered queue. Just enqueues (fast, non-blocking) - does not wait for
+     * delivery. MUST be called while still holding storeLock when forwarding a
+     * write the caller just assigned an offset to, so that the order commands
+     * get enqueued in matches the order offsets were assigned in - otherwise
+     * two racing threads could enqueue out of order even if they acquired
+     * storeLock in the correct order.
+     * @return futures to wait on (outside the lock) if the caller needs to
+     *         confirm delivery before responding to its client
+     */
+    private static List<Future<?>> enqueueForFollowers(Command command) {
+        List<Future<?>> futures = new ArrayList<>();
         if (shard == null) {
             //System.out.println("Cannot take requests, shard not set yet");
-            return;
+            return futures;
         }
-        // convert command to json - done once as to reduce overhead of converting multiple times in the loop
         String json;
         try {
             json = mapper.writeValueAsString(command);
         } catch (IOException e) {
             System.err.println("Error serializing command: " + e.getMessage());
-            return;
+            return futures;
         }
-
-        // submit all sends in parallel, collecting a Future for each
-        List<Future<?>> futures = new ArrayList<>();
-        //System.out.println("Forwarding request to followers of shard " + shard.getId());
         for (Address nodeAddress : shard.getFollowers()) {
-                //add future to list (using the dedicated replication pool)
-                //System.out.println("Forwarding request to node " + nodeAddress.getPort() + ": " + json);
-                Future<?> future = replicationThreadPool.submit(() -> {sendToNode(nodeAddress, json);});
-                futures.add(future);
-            
+            futures.add(getFollowerQueue(nodeAddress).submit(() -> sendToNode(nodeAddress, json)));
         }
-        //wait for all futures to finish
+        return futures;
+    }
+
+    /**
+     * Blocks until every future completes - i.e. until every follower has
+     * acked this write. Call this OUTSIDE storeLock, since it does network I/O
+     * and would otherwise stall every other request on this node while waiting.
+     */
+    private static void waitForReplication(List<Future<?>> futures) {
         for (Future<?> future : futures) {
             try {
-                future.get(); //blocks until this task is done
-                
+                future.get();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (ExecutionException e) {

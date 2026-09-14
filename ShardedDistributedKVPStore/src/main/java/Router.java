@@ -13,12 +13,12 @@ public class Router {
     private static final ObjectMapper mapper = new ObjectMapper();
     //thread pool limiting number of threads
     // dedicated pool for long-lived client connections
-    private static final ExecutorService clientThreadPool = Executors.newFixedThreadPool(200);
+    private static final ExecutorService clientThreadPool = Executors.newFixedThreadPool(100);
     // dedicated pool for short-lived heartbeat sends, so a stuck client or node connection
     // can never block heartbeats (or vice versa)
     private static final ExecutorService heartbeatThreadPool = Executors.newCachedThreadPool();
     //connection pool, limiting number of connections, and preventing creation overhead
-    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager(30);
+    private static final NodeConnectionPoolManager connectionPoolManager = new NodeConnectionPoolManager(64);
     public static void main(String[] args) throws Exception {
         
 

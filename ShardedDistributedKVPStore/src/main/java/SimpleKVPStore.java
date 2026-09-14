@@ -1,11 +1,13 @@
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SimpleKVPStore {
-    private Properties store;
-    private String fileName;
+    private final Map<String, String> store;
+    private final String fileName;
 
     /**
      * @param fileName File name of the properties file to be used
@@ -13,7 +15,7 @@ public class SimpleKVPStore {
      * creates store, sets file name, and loads any existing data into the store (loads nothing if data not found)
      */
     public SimpleKVPStore(String fileName) {
-        this.store = new Properties();
+        this.store = new ConcurrentHashMap<>();
         this.fileName = fileName;
 
         loadData();
@@ -24,7 +26,11 @@ public class SimpleKVPStore {
      */
     public void loadData() {
         try (FileInputStream in = new FileInputStream(this.fileName)) {
-            store.load(in);
+            Properties props = new Properties();
+            props.load(in);
+            for (String key : props.stringPropertyNames()) {
+                store.put(key, props.getProperty(key));
+            }
         }
         catch (IOException e) {
             System.out.println("No existing data found");
@@ -36,7 +42,9 @@ public class SimpleKVPStore {
      */
     public void saveData() {
         try (FileOutputStream out = new FileOutputStream(this.fileName)) {
-            store.store(out, "Simple KVP store");
+            Properties props = new Properties();
+            props.putAll(store);
+            props.store(out, "Simple KVP store");
         }
         catch (IOException e) {
             System.out.println("Failed to save data: " + e.getMessage());
@@ -49,12 +57,9 @@ public class SimpleKVPStore {
      * 
      * @return whether the key was added
      * adds the mapping key --> value to the store, returning True if added, False otherwise
-     * locked to prevent one thread overwriting another
      */
-    public synchronized Boolean put(String key, String value) {
-        //set property then instantly save
-        store.setProperty(key, value);
-        saveData();
+    public Boolean put(String key, String value) {
+        store.put(key, value);
         return true;
     }
 
@@ -63,10 +68,9 @@ public class SimpleKVPStore {
      * 
      * @return the value associated with this key
      * gets the value stored under the key, returns null if not present
-     * locked to prevent one thread overwriting another
      */
-    public synchronized String get(String key) {
-        return store.getProperty(key);
+    public String get(String key) {
+        return store.get(key);
     }
 
     /**
@@ -75,13 +79,8 @@ public class SimpleKVPStore {
      * @return whether the delete was sucessfull
      * 
      * takes a key and deletes that KVP from the store
-     * locked to prevent one thread overwriting another
      */
-    public synchronized boolean remove(String key) {
-        //remove and return value removed
-        Object value = store.remove(key);
-        saveData();
-        // if value is null then it was never in the store, so return false
-        return value != null;
+    public boolean remove(String key) {
+        return store.remove(key) != null;
     }
 }

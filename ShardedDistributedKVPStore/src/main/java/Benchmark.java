@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class Benchmark {
-    private static final int CONCURRENT_THREADS = 128;
+    private static final int CONCURRENT_THREADS = 16;
     private static final String HOST = "localhost";
     private static final int PORT = 8080;
 
