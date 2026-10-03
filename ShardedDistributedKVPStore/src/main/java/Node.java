@@ -33,6 +33,7 @@ public class Node {
     // the kv store itself - now a field (was a main() local) so catch-up code
     // running outside respond() can reach it
     private static SimpleKVPStore store;
+    private static RaftNode raftNode;
 
     // this node's current position in the action log. On the leader this is the
     // authoritative "next offset to assign" counter. On a follower it's "the last
@@ -92,6 +93,7 @@ public class Node {
             
             //initiate KVP store
             store = new SimpleKVPStore(fileName);
+            raftNode = new RaftNode(address, store, connectionPoolManager);
 
             // make sure the data directory exists before we try to open a file in it
             new File("data").mkdirs();
@@ -148,8 +150,9 @@ public class Node {
                                 //if not a command then its a replication request (heartbeat)
                                 Shard oldShard = shard;
                                 shard = mapper.readValue(jsonRequest, Shard.class);
-                                //respond to replication request
-                                //System.out.println("Updated shard");
+                                if (raftNode != null) {
+                                    raftNode.updateShard(shard);
+                                }
                                 out.println("Shard for address " + address + " updated");
 
                                 if (address.equals(shard.getLeader())) {
@@ -188,14 +191,20 @@ public class Node {
      */
     private static void respond(Command command, BufferedReader in, PrintWriter out) {
         
-        //process the inputted command
-
-        //get type key and value from command
         String type = command.getType();
         String key = command.getKey();
         String value = command.getValue();
 
-        //System.out.println("Address is " + address.prettyPrint() + " and shard is " + shard.prettyPrint());
+        // Handle Raft Consensus RPCs
+        if ("REQUEST_VOTE".equals(type)) {
+            Command resp = raftNode.handleRequestVote(command);
+            try { out.println(mapper.writeValueAsString(resp)); } catch (IOException e) { out.println("{}"); }
+            return;
+        } else if ("APPEND_ENTRIES".equals(type)) {
+            Command resp = raftNode.handleAppendEntries(command);
+            try { out.println(mapper.writeValueAsString(resp)); } catch (IOException e) { out.println("{}"); }
+            return;
+        }
 
         //if command is a put
         if (type.equals("PUT")) {

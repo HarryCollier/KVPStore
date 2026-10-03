@@ -1,3 +1,4 @@
+RaftLogEntry.class
 Node$1.class
 Client.class
 NodeConnection.class
@@ -10,4 +11,6 @@ Address.class
 Benchmark.class
 Router.class
 ConnectionPool.class
+RaftNode$Role.class
+RaftNode.class
 NodeConnectionPoolManager.class
